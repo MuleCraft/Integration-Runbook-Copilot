@@ -77,28 +77,15 @@ AlertLens acts as an **Integration Runbook Copilot** that:
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AlertLens Frontend                       │
-│                 (React + TypeScript + Vite)                  │
-└─────────────────────────────────────────────────────────────┘
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-          ▼                ▼                ▼
-┌─────────────────┐ ┌──────────────┐ ┌────────────────┐
-│  MuleSoft API   │ │ Observability│ │  Google Gemini │
-│  (Alerts)       │ │  API         │ │  (AI Analysis) │
-└─────────────────┘ └──────────────┘ └────────────────┘
-          │                │
-          └────────────────┘
-                  │
-                  ▼
-        ┌──────────────────────┐
-        │ Supabase Edge Functions│
-        │  (CORS Bypass)         │
-        └──────────────────────┘
-```
+<div align="center">
+  <img src="./public/architecture.png" alt="AlertLens Architecture" width="800">
+</div>
+
+AlertLens integrates seamlessly with your existing MuleSoft infrastructure:
+- **Email Sources**: Outlook and Gmail alerts are automatically fetched
+- **AI Decision Engine**: Gemini Flash Orchestrator analyzes and prioritizes incidents
+- **Anypoint Platform**: Real-time health checks, deployment tracking, and validation
+- **Future Integration**: Ready for SnapLogic, Dell Boomi, and Digibee platforms
 
 ### Core Components
 
