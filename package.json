@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
-    "@mistralai/mistralai": "^1.14.0",
     "@monaco-editor/react": "^4.7.0",
     "axios": "^1.13.4",
     "clsx": "^2.1.1",

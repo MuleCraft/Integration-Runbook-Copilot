@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { IncidentAnalysisResponse, Incident } from '../types';
 import { MOCK_RESPONSE } from './mockData';
-import { analyzeEmailAlertsWithMistral, analyzeObservabilityWithMistral } from './mistral';
+import { analyzeEmailAlertsWithGemini, analyzeObservabilityWithGemini } from './gemini';
 import { fetchAllObservabilityData, fetchAlertsViaEdgeFunction } from './supabase-client';
 
 // API base URLs - use environment variables if available, otherwise use proxy
@@ -34,14 +34,14 @@ async function fetchObservabilityData(service: string, alertTitle: string, alert
     if (!ENABLE_OBSERVABILITY) {
         console.log(`🔕 Observability disabled for ${service} (VITE_ENABLE_OBSERVABILITY=false)`);
         
-        // Even with observability disabled, provide AI analysis based on alert details
-        const aiSummary = await analyzeObservabilityWithMistral(
-            { status: 'Disabled', lastCheckTime: 'N/A' },
-            { version: 'N/A', deployedAt: 'N/A', deployedBy: 'N/A', changeSummary: 'N/A' },
-            { success: false, error: 'No data' },
-            alertTitle,
-            alertSummary
-        );
+            // Even with observability disabled, provide AI analysis based on alert details
+            const aiSummary = await analyzeObservabilityWithGemini(
+                { status: 'Disabled', lastCheckTime: 'N/A' },
+                { version: 'N/A', deployedAt: 'N/A', deployedBy: 'N/A', changeSummary: 'N/A' },
+                { success: false, error: 'No data' },
+                alertTitle,
+                alertSummary
+            );
         
         return {
             data: {
@@ -87,7 +87,7 @@ async function fetchObservabilityData(service: string, alertTitle: string, alert
             }
 
             // Get AI analysis with alert summary
-            const aiSummary = await analyzeObservabilityWithMistral(statusData, deployData, smokeData, alertTitle, alertSummary);
+            const aiSummary = await analyzeObservabilityWithGemini(statusData, deployData, smokeData, alertTitle, alertSummary);
 
             return {
                 data: {
@@ -207,7 +207,7 @@ async function fetchObservabilityData(service: string, alertTitle: string, alert
 
     // Always get AI analysis, even if API failed (AI will explain the "Offline" state)
     // Pass alertSummary so AI can provide insights even with missing observability data
-    const aiSummary = await analyzeObservabilityWithMistral(statusData, deployData, smokeData, alertTitle, alertSummary);
+    const aiSummary = await analyzeObservabilityWithGemini(statusData, deployData, smokeData, alertTitle, alertSummary);
 
     return {
         data: {
@@ -294,7 +294,7 @@ export async function analyzeAlerts(useSample: boolean, params?: AnalysisParams)
             console.warn('MuleSoft API returned empty array');
         }
 
-        // Strip HTML content before sending to Mistral to reduce token usage
+        // Strip HTML content before sending to Gemini to reduce token usage
         // We'll use the local HTML content directly later
         // Use bodyPreview (text) instead of HTML content for accurate analysis
         const emailsWithoutHtml = rawEmails.map((email: any, index: any) => ({
@@ -311,8 +311,8 @@ export async function analyzeAlerts(useSample: boolean, params?: AnalysisParams)
             bodyPreview: email.bodyPreview || ''
         }));
 
-        // Call Mistral SDK module with stripped data
-        const analyzedAlerts = await analyzeEmailAlertsWithMistral(JSON.stringify(emailsWithoutHtml));
+        // Call Gemini SDK module with stripped data
+        const analyzedAlerts = await analyzeEmailAlertsWithGemini(JSON.stringify(emailsWithoutHtml));
 
         const mappedIncidents: Incident[] = await Promise.all(analyzedAlerts.map(async (alert) => {
             let sev: any = 'P3';
@@ -342,7 +342,7 @@ export async function analyzeAlerts(useSample: boolean, params?: AnalysisParams)
                 timestamp: alert.timestamp || new Date().toISOString(),
                 source: alert.sender || 'MuleSoft System',
                 status: 'Investigating',
-                // Use HTML directly from local rawEmails array (not from Mistral response)
+                // Use HTML directly from local rawEmails array (not from Gemini response)
                 rawContent: originalEmail?.content || alert.summary,
                 appName: appName,
                 environment: alert.environment || 'Unspecified',

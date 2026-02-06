@@ -1,45 +1,77 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// For demo purposes, we usually use an environment variable.
-// VITE_GEMINI_API_KEY should be set in .env
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
-
 export type AlertAnalysis = {
+    emailIndex?: number;   // Index to match back to original email
     id: string;
     title: string;
+    originalSubject?: string;
     summary: string;
     severity: "Low" | "Medium" | "High" | "Critical";
     suggestedAction: string;
     sender: string;
     timestamp: string;
+    appName: string;       // Extract from apiName field
+    environment?: string;
+    object?: string;
 };
 
-export async function analyzeEmailAlerts(emailJson: string, overrideApiKey?: string): Promise<AlertAnalysis[]> {
+export async function analyzeEmailAlertsWithGemini(emailJson: string, overrideApiKey?: string): Promise<AlertAnalysis[]> {
     const activeKey = overrideApiKey || API_KEY;
     if (!activeKey) {
         throw new Error("Gemini API Key not found. Please provide one in the UI or .env file.");
     }
 
     const genAI = new GoogleGenerativeAI(activeKey);
-    // Use Gemini 2.0 Flash-Lite - the smallest/fastest stable model for high-quota use
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+    // Use Gemini 2.0 Flash for fast, accurate analysis
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.0-flash-exp",
+        generationConfig: {
+            responseMimeType: "application/json"
+        }
+    });
 
     const prompt = `
     You are an expert security and system administrator. 
-    Analyze the following JSON data which contains email alert information.
-    Extract the key alerts and return them as a JSON array of objects.
-    Each object must have:
-    - id: A unique string identifier.
-    - title: A concise title for the alert.
-    - summary: A brief summary of what happened.
-    - severity: One of "Low", "Medium", "High", "Critical".
-    - suggestedAction: What the user should do next.
-    - sender: The email sender name or address.
-    - timestamp: The time of the alert.
+    Analyze the following JSON data which contains email alert metadata.
+    Each email has a unique emailIndex - you MUST return exactly ONE alert for EACH input email, preserving the emailIndex.
     
-    Only return alerts where the severity is "Medium" or higher.
-    Return ONLY valid JSON.
+    CRITICAL INSTRUCTIONS:
+    1. Process EVERY email: Return exactly ONE alert object for EACH email in the input array. If input has 7 emails, output MUST have 7 alerts.
+    2. Preserve emailIndex: Each output alert MUST include the "emailIndex" field from its corresponding input email.
+    3. Extract Unique Details: Carefully read the "bodyPreview" field to extract the SPECIFIC error for EACH alert:
+       - Error types (e.g., INTERNAL_SERVER_ERROR, FORBIDDEN, UNAUTHORIZED, TOO_MANY_REQUESTS, BAD_SQL_SYNTAX)
+       - HTTP status codes (e.g., 500, 403, 401, 429)
+       - Specific error messages
+       - Correlation IDs
+    4. Date Formatting: Return "timestamp" in ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ).
+    5. Severity Mapping: 
+       - If "CRITICAL" in subject or HTTP 5xx errors: "Critical"
+       - If 4xx errors or "High": "High"
+       - If "Medium" or minor issues: "Medium"
+       - Otherwise: "Low"
+    
+    Each output object must have:
+    - emailIndex: The exact emailIndex from the input (REQUIRED for matching).
+    - id: A unique string identifier (e.g., "alert-{emailIndex}").
+    - title: A concise, SPECIFIC title reflecting the UNIQUE error (e.g., "Order API Internal Server Error (500)", "Order API Forbidden Error (403)", "Payment API SQL Syntax Error").
+    - summary: A detailed technical summary extracted from bodyPreview, including the SPECIFIC error type and message for THIS alert.
+    - originalSubject: The exact "subject" field from input.
+    - severity: "Low", "Medium", "High", or "Critical".
+    - suggestedAction: Root cause fix specific to THIS error type.
+    - sender: The "sender" field from input.
+    - timestamp: The "timestamp" field from input in ISO 8601 format.
+    - appName: The "apiName" field (e.g., "order-api", "payment-api").
+    - environment: Extract from bodyPreview or use "prod" as default.
+    - object: Extract from bodyPreview (e.g., "order", "payment", "invoice").
+    
+    VALIDATION:
+    - Output array length MUST equal input array length.
+    - Each alert MUST have unique, specific details from its bodyPreview.
+    - DO NOT merge or deduplicate alerts with similar errors - treat each as separate.
+    
+    Return the response as a JSON object with an "alerts" key containing the array.
     
     Input JSON:
     ${emailJson}
@@ -52,9 +84,117 @@ export async function analyzeEmailAlerts(emailJson: string, overrideApiKey?: str
 
         // Clean the response in case it contains markdown code blocks
         const cleanedText = text.replace(/```json|```/g, "").trim();
-        return JSON.parse(cleanedText) as AlertAnalysis[];
+        const parsed = JSON.parse(cleanedText);
+        
+        // Handle both direct array and wrapped object responses
+        const alerts = Array.isArray(parsed) ? parsed : (parsed.alerts || Object.values(parsed)[0]);
+        
+        return alerts as AlertAnalysis[];
     } catch (error) {
-        console.error("Error analyzing alerts:", error);
+        console.error("Error analyzing alerts with Gemini:", error);
         throw error;
+    }
+}
+
+export async function analyzeObservabilityWithGemini(rawStatus: any, rawDeploy: any, rawSmoke: any, alertTitle: string, alertSummary?: string): Promise<any> {
+    const activeKey = API_KEY;
+    if (!activeKey) return null;
+
+    const genAI = new GoogleGenerativeAI(activeKey);
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.0-flash-exp",
+        generationConfig: {
+            responseMimeType: "application/json"
+        }
+    });
+
+    // Check if observability data is mostly N/A
+    const hasObservabilityData = rawStatus?.status !== 'N/A' && rawStatus?.status !== 'Unknown';
+    
+    const prompt = `
+    You are an expert site reliability engineer analyzing: "${alertTitle}"
+    
+    ${alertSummary ? `Alert Summary: ${alertSummary}` : ''}
+    
+    Observability Data:
+    - Status: ${JSON.stringify(rawStatus)}
+    - Deployment: ${JSON.stringify(rawDeploy)}
+    - Smoke Tests: ${JSON.stringify(rawSmoke)}
+    
+    IMPORTANT INSTRUCTIONS:
+    ${!hasObservabilityData ? `
+    The observability data is unavailable (N/A/Unknown). You MUST analyze based on the alert title and summary instead.
+    Extract insights from the error message, API name, and alert severity.
+    ` : ''}
+    
+    Provide a professional analysis with SHORT KEY POINTS (max 15 words each):
+    
+    1. statusSection: 
+       ${!hasObservabilityData ? 
+       `- Analyze the alert title/summary to infer service health
+       - Mention specific error types (e.g., "SQL syntax error", "HTTP 500", "Authentication failed")
+       - State impact (e.g., "• Payment processing unavailable", "• Database query failures")` :
+       `- 2-3 bullet points on current health status
+       - Start with API name (e.g., "Payment API: Experiencing errors")
+       - If 'Unknown', infer connection/availability issue`}
+    
+    2. deploymentSection:
+       ${!hasObservabilityData ?
+       `- Say "• Deployment history unavailable - monitoring infrastructure may be down"
+       - Or "• Recent code changes may have introduced errors"` :
+       `- Latest deployment info or "• No recent deployments detected"
+       - Include version, time, deployer if available`}
+    
+    3. smokeSection:
+       ${!hasObservabilityData ?
+       `- Infer from alert: "• Based on alert - service failing basic operations"
+       - Mention specific failure type (DB error, API error, etc.)` :
+       `- Smoke test results
+       - If failed, extract ERROR message
+       - If N/A, say "• Automated validation not configured"`}
+    
+    4. conclusion:
+       - Brief summary of situation and urgency
+       - Example: "Payment API experiencing database errors - immediate investigation required"
+       - Example: "Service health unknown - monitoring gaps detected"
+    
+    5. recommendedSeverity: 
+       - "P1" if service completely down or critical errors
+       - "P2" if significant errors but service partially working
+       - "P3" if minor issues or monitoring unavailable
+       - "P4" if informational only
+    
+    CRITICAL RULES:
+    - NEVER output just "N/A" or "Unknown" - always provide context
+    - Extract specific error details from alert title/summary
+    - Be actionable - what should engineers investigate?
+    - If monitoring data unavailable, acknowledge it professionally
+    
+    Return as valid JSON with these 5 keys: statusSection, deploymentSection, smokeSection, conclusion, recommendedSeverity (all strings).
+    `;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        const cleanedText = text.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(cleanedText);
+        
+        // Validate and ensure all fields are strings
+        if (parsed && typeof parsed === 'object') {
+            return {
+                statusSection: String(parsed.statusSection || ''),
+                deploymentSection: String(parsed.deploymentSection || ''),
+                smokeSection: String(parsed.smokeSection || ''),
+                conclusion: String(parsed.conclusion || ''),
+                recommendedSeverity: parsed.recommendedSeverity || undefined
+            };
+        }
+        
+        return null;
+    } catch (error) {
+        console.error("AI Health Analysis Error:", error);
+        return null;
     }
 }
