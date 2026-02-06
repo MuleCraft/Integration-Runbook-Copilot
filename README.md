@@ -44,7 +44,7 @@ AlertLens acts as an **Integration Runbook Copilot** that:
 
 ### 🤖 AI-Powered Alert Analysis
 - Automated parsing and classification of MuleSoft email alerts
-- Intelligent severity assessment using **Google Gemini 2.0 Flash**
+- Intelligent severity assessment using **Google Gemini 3.0**
 - Root cause analysis with suggested remediation steps
 - Natural language summaries of complex technical issues
 
@@ -69,7 +69,7 @@ AlertLens acts as an **Integration Runbook Copilot** that:
 ### 🚀 Modern Tech Stack
 - **Frontend**: React 19 + TypeScript + Vite
 - **Styling**: TailwindCSS with custom design system
-- **AI**: Google Gemini 2.0 Flash for fast, accurate analysis
+- **AI**: Google Gemini 3.0 for advanced AI-powered analysis
 - **APIs**: Axios with intelligent CORS handling
 - **Deployment**: Docker-ready with multi-stage builds
 
@@ -83,7 +83,7 @@ AlertLens acts as an **Integration Runbook Copilot** that:
 
 AlertLens integrates seamlessly with your existing MuleSoft infrastructure:
 - **Email Sources**: Outlook and Gmail alerts are automatically fetched
-- **AI Decision Engine**: Gemini Flash Orchestrator analyzes and prioritizes incidents
+- **AI Decision Engine**: Gemini 3.0 Orchestrator analyzes and prioritizes incidents
 - **Anypoint Platform**: Real-time health checks, deployment tracking, and validation
 - **Future Integration**: Ready for SnapLogic, Dell Boomi, and Digibee platforms
 
@@ -99,7 +99,7 @@ AlertLens integrates seamlessly with your existing MuleSoft infrastructure:
 ### API Modules
 
 - **`client.ts`**: Unified API client with CORS handling and retry logic
-- **`gemini.ts`**: Google Gemini AI integration for alert and observability analysis
+- **`gemini.ts`**: Google Gemini 3.0 integration for alert and observability analysis
 - **`supabase-client.ts`**: Edge function client for CORS-safe API calls
 
 ---
@@ -371,7 +371,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 🙏 Acknowledgments
 
-- **Google Gemini** for powerful AI-driven alert analysis
+- **Google Gemini 3.0** for powerful AI-driven alert analysis
 - **MuleSoft Community** for integration best practices
 - **React** and **Vite** teams for amazing developer experience
 

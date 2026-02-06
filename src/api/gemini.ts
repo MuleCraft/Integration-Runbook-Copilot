@@ -24,9 +24,9 @@ export async function analyzeEmailAlertsWithGemini(emailJson: string, overrideAp
     }
 
     const genAI = new GoogleGenerativeAI(activeKey);
-    // Use Gemini 2.0 Flash for fast, accurate analysis
+    // Use Gemini 3.0 for advanced AI-powered analysis
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.0-flash",
         generationConfig: {
             responseMimeType: "application/json"
         }
@@ -101,8 +101,9 @@ export async function analyzeObservabilityWithGemini(rawStatus: any, rawDeploy: 
     if (!activeKey) return null;
 
     const genAI = new GoogleGenerativeAI(activeKey);
+    // Use Gemini 3.0 for advanced observability analysis
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-3.0-flash",
         generationConfig: {
             responseMimeType: "application/json"
         }
